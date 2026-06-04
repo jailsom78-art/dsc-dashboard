@@ -82,7 +82,8 @@ const state = {
         tipo: null,
         history: null,
         empresas: null,
-        gerentes: null
+        gerentes: null,
+        funcoes: null
     }
 };
 
@@ -755,6 +756,86 @@ function renderCharts() {
             scales: {
                 x: { ticks: { color: textCol }, grid: { color: gridCol } },
                 y: { ticks: { color: textCol }, grid: { display: false } }
+            }
+        }
+    });
+
+    // --- CHART 6: ADERÊNCIA POR TIPO DE FUNÇÃO (Horizontal Bar) ---
+    destroyChart('funcoes');
+    
+    // Group active filtered collaborators by job role (funcao) and calculate average compliance
+    const roleStats = {};
+    state.complianceTable.filteredData.forEach(collab => {
+        const role = collab.funcao || 'NÃO MAPEADA';
+        if (!roleStats[role]) {
+            roleStats[role] = { sum: 0, count: 0 };
+        }
+        roleStats[role].sum += collab.complianceRate;
+        roleStats[role].count += 1;
+    });
+
+    const roleLabels = Object.keys(roleStats);
+    const roleAverages = roleLabels.map(role => {
+        const stats = roleStats[role];
+        return {
+            role: role,
+            avg: stats.count > 0 ? stats.sum / stats.count : 0,
+            count: stats.count
+        };
+    });
+
+    // Sort roles by compliance rate descending
+    roleAverages.sort((a, b) => b.avg - a.avg);
+
+    const chartRoleLabels = roleAverages.map(item => item.role);
+    const chartRoleValues = roleAverages.map(item => item.avg);
+
+    state.charts.funcoes = new Chart(document.getElementById('chart-funcoes'), {
+        type: 'bar',
+        data: {
+            labels: chartRoleLabels,
+            datasets: [{
+                label: 'Aderência (%)',
+                data: chartRoleValues,
+                backgroundColor: 'rgba(168, 85, 247, 0.75)', // Elegant Purple
+                borderColor: '#a855f7',
+                borderWidth: 1,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const item = roleAverages[index];
+                            return `Aderência: ${context.raw.toFixed(1)}% (${item.count} colab.)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        color: textCol,
+                        callback: function(value) { return value + '%'; }
+                    },
+                    grid: { color: gridCol }
+                },
+                y: {
+                    ticks: {
+                        color: textCol,
+                        font: { size: 10 }
+                    },
+                    grid: { display: false }
+                }
             }
         }
     });
