@@ -63,7 +63,7 @@ const state = {
         tipo: '',
         empresa: '',
         frente: '',
-        cc: ''            // New Centro de Custo filter
+        cc: []            // Multiselect Centro de Custo filter array
     },
     
     // Pagination states
@@ -440,6 +440,118 @@ function buildCollaboratorComplianceMatrix() {
     state.collaborators = collabs;
 }
 
+// Custom Multiselect for Cost Center
+function populateCcMultiselect() {
+    const optionsContainer = document.getElementById('multiselect-cc-options');
+    if (!optionsContainer) return;
+    
+    optionsContainer.innerHTML = '';
+    
+    // Sort uniqueCCs alphabetically/numerically
+    const sortedCCs = [...state.uniqueCCs].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    
+    sortedCCs.forEach(cc => {
+        if (!cc) return;
+        const div = document.createElement('div');
+        div.className = 'multiselect-option';
+        div.dataset.value = cc;
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = cc;
+        checkbox.checked = state.filters.cc.includes(cc);
+        
+        const span = document.createElement('span');
+        span.textContent = cc;
+        
+        div.appendChild(checkbox);
+        div.appendChild(span);
+        
+        // Handle click on the whole option row
+        div.addEventListener('click', function(e) {
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            handleCcSelectionChange();
+        });
+        
+        optionsContainer.appendChild(div);
+    });
+    
+    updateCcMultiselectTriggerText();
+}
+
+function handleCcSelectionChange() {
+    const checkboxes = document.querySelectorAll('#multiselect-cc-options input[type="checkbox"]');
+    const selected = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selected.push(cb.value);
+        }
+    });
+    state.filters.cc = selected;
+    updateCcMultiselectTriggerText();
+    applyFilters();
+}
+
+function updateCcMultiselectTriggerText() {
+    const triggerText = document.querySelector('#multiselect-cc-trigger .multiselect-selected-text');
+    if (!triggerText) return;
+    
+    if (state.filters.cc.length === 0) {
+        triggerText.textContent = 'Todos os C. Custos';
+    } else if (state.filters.cc.length === 1) {
+        triggerText.textContent = state.filters.cc[0];
+    } else if (state.filters.cc.length === state.uniqueCCs.filter(Boolean).length) {
+        triggerText.textContent = 'Todos os C. Custos';
+    } else {
+        triggerText.textContent = `${state.filters.cc.length} selecionados`;
+    }
+}
+
+function initCcMultiselect() {
+    const trigger = document.getElementById('multiselect-cc-trigger');
+    const container = document.getElementById('multiselect-cc-container');
+    const searchInput = document.getElementById('multiselect-cc-search');
+    
+    if (!trigger || !container) return;
+    
+    // Toggle dropdown
+    trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        container.classList.toggle('active');
+        if (container.classList.contains('active') && searchInput) {
+            searchInput.focus();
+        }
+    });
+    
+    // Stop propagation inside dropdown so clicks don't close it
+    container.querySelector('.multiselect-dropdown').addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+    
+    // Close dropdown on click outside
+    document.addEventListener('click', function() {
+        container.classList.remove('active');
+    });
+    
+    // Filter options on search
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const val = this.value.toLowerCase().trim();
+            const options = container.querySelectorAll('.multiselect-option');
+            options.forEach(opt => {
+                const text = opt.dataset.value.toLowerCase();
+                if (text.includes(val)) {
+                    opt.style.display = 'flex';
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
+        });
+    }
+}
+
 // Fill Sidebar Filter Dropdowns dynamically
 function populateFilterSelects() {
     const fillSelect = (selectId, options) => {
@@ -458,7 +570,7 @@ function populateFilterSelects() {
     fillSelect('filter-regional', state.uniqueRegionals);
     fillSelect('filter-gerente', state.uniqueManagers);
     fillSelect('filter-empresa', state.uniqueCompanies);
-    fillSelect('filter-cc', state.uniqueCCs); // Fill cost centers select
+    populateCcMultiselect(); // Draw checkboxes dynamically
     fillSelect('filter-frente', state.uniqueFrentes);
 
     // Compliance tab specific filters
@@ -481,7 +593,7 @@ function applyFilters() {
         if (state.filters.gerente && row.gerente !== state.filters.gerente) return false;
         if (state.filters.tipo && row.tipo !== state.filters.tipo) return false;
         if (state.filters.empresa && row.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && row.cc !== state.filters.cc) return false; // Filter CC
+        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(row.cc)) return false; // Filter CC
         if (state.filters.frente && row.frente !== state.filters.frente) return false;
         
         if (state.filters.search) {
@@ -502,7 +614,7 @@ function applyFilters() {
         if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
         if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
         if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && collab.cc !== state.filters.cc) return false; // Filter CC
+        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false; // Filter CC
         if (state.filters.frente && collab.frente !== state.filters.frente) return false;
 
         if (state.filters.search) {
@@ -544,7 +656,7 @@ function updateDashboardKPIs() {
         if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
         if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
         if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && collab.cc !== state.filters.cc) return false;
+        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
         if (state.filters.frente && collab.frente !== state.filters.frente) return false;
         return true;
     });
@@ -591,7 +703,7 @@ function renderCharts() {
         if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
         if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
         if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && collab.cc !== state.filters.cc) return false;
+        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
         if (state.filters.frente && collab.frente !== state.filters.frente) return false;
 
         if (state.filters.search) {
@@ -1326,7 +1438,7 @@ function clearAllFilters(reApply = true) {
         gerente: '',
         tipo: '',
         empresa: '',
-        cc: '',
+        cc: [],
         frente: ''
     };
     
@@ -1336,8 +1448,14 @@ function clearAllFilters(reApply = true) {
     document.getElementById('filter-gerente').value = '';
     document.getElementById('filter-tipo').value = '';
     document.getElementById('filter-empresa').value = '';
-    document.getElementById('filter-cc').value = '';
     document.getElementById('filter-frente').value = '';
+    
+    // Reset custom multiselect UI state
+    document.querySelectorAll('#multiselect-cc-options input[type="checkbox"]').forEach(cb => cb.checked = false);
+    const msSearch = document.getElementById('multiselect-cc-search');
+    if (msSearch) msSearch.value = '';
+    document.querySelectorAll('#multiselect-cc-options .multiselect-option').forEach(opt => opt.style.display = 'flex');
+    updateCcMultiselectTriggerText();
 
     if (reApply) {
         applyFilters();
@@ -1519,9 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filter-empresa').addEventListener('change', function() {
         updateGlobalFilter('empresa', this.value);
     });
-    document.getElementById('filter-cc').addEventListener('change', function() {
-        updateGlobalFilter('cc', this.value);
-    });
+    initCcMultiselect(); // Initialize custom cost center multiselect dropdown behaviors
     document.getElementById('filter-frente').addEventListener('change', function() {
         updateGlobalFilter('frente', this.value);
     });
@@ -1545,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
             if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
             if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-            if (state.filters.cc && collab.cc !== state.filters.cc) return false;
+            if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
             if (state.filters.frente && collab.frente !== state.filters.frente) return false;
             
             const situationFilter = document.getElementById('compliance-filter-status').value;
@@ -1586,7 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.filters.gerente && row.gerente !== state.filters.gerente) return false;
             if (state.filters.tipo && row.tipo !== state.filters.tipo) return false;
             if (state.filters.empresa && row.empresa !== state.filters.empresa) return false;
-            if (state.filters.cc && row.cc !== state.filters.cc) return false;
+            if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(row.cc)) return false;
             if (state.filters.frente && row.frente !== state.filters.frente) return false;
 
             return row.nome.toLowerCase().includes(query) || 

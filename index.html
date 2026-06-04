@@ -19,7 +19,7 @@
     <!-- Custom Style -->
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="dark-mode"> <!-- Defaulting to dark mode for visual impact -->
+<body class="">
     
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
@@ -140,9 +140,20 @@
 
                     <div class="filter-group">
                         <label for="filter-cc"><i class="fa-solid fa-wallet"></i> Centro de Custo</label>
-                        <select id="filter-cc">
-                            <option value="">Todos os C. Custos</option>
-                        </select>
+                        <div class="custom-multiselect" id="multiselect-cc-container">
+                            <div class="multiselect-trigger" id="multiselect-cc-trigger">
+                                <span class="multiselect-selected-text">Todos os C. Custos</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                            <div class="multiselect-dropdown" id="multiselect-cc-dropdown">
+                                <div class="multiselect-search-container">
+                                    <input type="text" id="multiselect-cc-search" placeholder="Pesquisar CC...">
+                                </div>
+                                <div class="multiselect-options" id="multiselect-cc-options">
+                                    <!-- Checkboxes will be loaded here dynamically -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="filter-group">
@@ -180,7 +191,7 @@
                         <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
                     <button id="theme-toggle-btn" class="theme-toggle-btn" title="Alternar Tema">
-                        <i class="fa-solid fa-sun"></i>
+                        <i class="fa-solid fa-moon"></i>
                     </button>
                 </div>
             </header>
