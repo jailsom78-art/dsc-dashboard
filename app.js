@@ -473,7 +473,8 @@ function applyFilters() {
             const s = state.filters.search.toLowerCase();
             const matchesName = row.nome.toLowerCase().includes(s);
             const matchesMatricula = row.matricula.toLowerCase().includes(s);
-            if (!matchesName && !matchesMatricula) return false;
+            const matchesCC = (row.cc || '').toLowerCase().includes(s);
+            if (!matchesName && !matchesMatricula && !matchesCC) return false;
         }
         return true;
     });
@@ -493,7 +494,8 @@ function applyFilters() {
             const s = state.filters.search.toLowerCase();
             const matchesName = collab.nome.toLowerCase().includes(s);
             const matchesMatricula = collab.matricula.toLowerCase().includes(s);
-            if (!matchesName && !matchesMatricula) return false;
+            const matchesCC = (collab.cc || '').toLowerCase().includes(s);
+            if (!matchesName && !matchesMatricula && !matchesCC) return false;
         }
 
         // Compliance Tab specific filters (Situation: Compliant vs Pending)
@@ -1659,7 +1661,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const matches = Object.values(state.collaborators).filter(col => {
-            return col.nome.toLowerCase().includes(val) || col.matricula.includes(val);
+            return col.nome.toLowerCase().includes(val) || 
+                   col.matricula.includes(val) || 
+                   (col.cc || '').toLowerCase().includes(val);
         }).slice(0, 8);
 
         if (matches.length === 0) {
