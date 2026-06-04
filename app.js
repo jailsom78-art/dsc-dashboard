@@ -176,7 +176,7 @@ function normalizeData(parsedRows) {
         // Parse remaining fields
         const rawDateStr = row['Carimbo de data/hora'] || '';
         const rawScore = row['Pontuação'] || '0';
-        const rawTema = (row['CONFIRME O TEMA DO DSC'] || '').trim();
+        const rawTema = (row['CONFIRME O TEMA DO DSC'] || '').trim().toUpperCase();
         const rawNome = (row['NOME COMPLETO'] || '').trim().toUpperCase();
         const rawMatricula = (row['MATRICULA'] || '').trim();
         const rawCidade = (row['CIDADE ONDE TRABALHA'] || '').trim().toUpperCase();
