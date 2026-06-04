@@ -160,6 +160,11 @@ function normalizeData(parsedRows) {
         // Skip empty rows or header duplicate rows
         if (!row['MATRICULA'] && !row['NOME COMPLETO']) return;
 
+        // Populate master themes set from ALL rows in the spreadsheet before filtering CGB/SUL
+        // This ensures the dashboard knows all 14 themes and calculates compliance gaps out of 14, not 7
+        const rawTema = (row['CONFIRME O TEMA DO DSC'] || '').trim().toUpperCase();
+        if (rawTema) themesSet.add(rawTema);
+
         // Clean up basic text fields
         const rawProprioParceira = (row['PROPRIO OU PARCEIRA?'] || '').trim().toUpperCase();
         const rawGrupoEmpresa = (row['EMPRESA DO GRUPO'] || '').trim().toUpperCase();
@@ -176,7 +181,6 @@ function normalizeData(parsedRows) {
         // Parse remaining fields
         const rawDateStr = row['Carimbo de data/hora'] || '';
         const rawScore = row['Pontuação'] || '0';
-        const rawTema = (row['CONFIRME O TEMA DO DSC'] || '').trim().toUpperCase();
         const rawNome = (row['NOME COMPLETO'] || '').trim().toUpperCase();
         const rawMatricula = (row['MATRICULA'] || '').trim();
         const rawCidade = (row['CIDADE ONDE TRABALHA'] || '').trim().toUpperCase();
@@ -222,8 +226,7 @@ function normalizeData(parsedRows) {
         const finalFuncao = cubosCollab.funcao || 'NÃO MAPEADA';
         const finalSituacao = cubosCollab.situacao || 'ATIVO';
 
-        // Populate sets for dropdown filters
-        if (rawTema) themesSet.add(rawTema);
+        // Populate sets for dropdown filters (rawTema already added at the top)
         if (rawRegional) regionalsSet.add(rawRegional);
         if (rawGerente) managersSet.add(rawGerente);
         if (finalEmpresa) companiesSet.add(finalEmpresa);
