@@ -88,7 +88,8 @@ const state = {
         history: null,
         empresas: null,
         gerentes: null,
-        funcoes: null
+        funcoes: null,
+        temas: null
     }
 };
 
@@ -583,6 +584,28 @@ function renderCharts() {
     const textCol = isDarkMode ? '#94a3b8' : '#64748b';
     const gridCol = isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
 
+    // Compute cohort filtered only by global/sidebar filters, not by compliance-tab-specific filters.
+    // This is used for compliance-by-role and compliance-by-theme charts.
+    const collabsList = Object.values(state.collaborators);
+    const globalFilteredCollabs = collabsList.filter(collab => {
+        if (state.filters.tema && !collab.completedThemes[state.filters.tema]) return false;
+        if (state.filters.regional && collab.regional !== state.filters.regional) return false;
+        if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
+        if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
+        if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
+        if (state.filters.cc && collab.cc !== state.filters.cc) return false;
+        if (state.filters.frente && collab.frente !== state.filters.frente) return false;
+
+        if (state.filters.search) {
+            const s = state.filters.search.toLowerCase();
+            const matchesName = collab.nome.toLowerCase().includes(s);
+            const matchesMatricula = collab.matricula.toLowerCase().includes(s);
+            const matchesCC = (collab.cc || '').toLowerCase().includes(s);
+            if (!matchesName && !matchesMatricula && !matchesCC) return false;
+        }
+        return true;
+    });
+
     // --- CHART 1: PARTICIPAÇÃO POR REGIONAL ---
     destroyChart('regional');
     const regionalCounts = {};
@@ -783,7 +806,7 @@ function renderCharts() {
     
     // Group active filtered collaborators by job role (funcao) and calculate average compliance
     const roleStats = {};
-    state.complianceTable.filteredData.forEach(collab => {
+    globalFilteredCollabs.forEach(collab => {
         const role = collab.funcao || 'NÃO MAPEADA';
         if (!roleStats[role]) {
             roleStats[role] = { sum: 0, count: 0 };
@@ -833,6 +856,81 @@ function renderCharts() {
                             const index = context.dataIndex;
                             const item = roleAverages[index];
                             return `Aderência: ${context.raw.toFixed(1)}% (${item.count} colab.)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        color: textCol,
+                        callback: function(value) { return value + '%'; }
+                    },
+                    grid: { color: gridCol }
+                },
+                y: {
+                    ticks: {
+                        color: textCol,
+                        font: { size: 10 }
+                    },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+
+    // --- CHART 7: ADERÊNCIA POR TEMA DE DSC (Horizontal Bar) ---
+    destroyChart('temas');
+
+    const totalCohortSize = globalFilteredCollabs.length;
+    const themeComplianceList = OFFICIAL_THEMES.map(theme => {
+        let completedCount = 0;
+        globalFilteredCollabs.forEach(collab => {
+            if (collab.completedThemes && collab.completedThemes[theme]) {
+                completedCount++;
+            }
+        });
+        const pct = totalCohortSize > 0 ? (completedCount / totalCohortSize) * 100 : 0;
+        return {
+            theme: theme,
+            percentage: pct,
+            completedCount: completedCount
+        };
+    });
+
+    // Sort themes by compliance percentage descending
+    themeComplianceList.sort((a, b) => b.percentage - a.percentage);
+
+    const chartThemeLabels = themeComplianceList.map(item => item.theme);
+    const chartThemeValues = themeComplianceList.map(item => item.percentage);
+
+    state.charts.temas = new Chart(document.getElementById('chart-temas'), {
+        type: 'bar',
+        data: {
+            labels: chartThemeLabels,
+            datasets: [{
+                label: 'Aderência (%)',
+                data: chartThemeValues,
+                backgroundColor: 'rgba(20, 184, 166, 0.75)', // Elegant Teal
+                borderColor: '#14b8a6',
+                borderWidth: 1,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            const item = themeComplianceList[index];
+                            return `Aderência: ${context.raw.toFixed(1)}% (${item.completedCount} de ${totalCohortSize} colab.)`;
                         }
                     }
                 }
