@@ -37,6 +37,11 @@ const OFFICIAL_THEMES = [
     "TEMA 28 - COMO LIDAR COM CLIENTES EXALTADOS OU NERVOSOS"
 ];
 
+// Matrículas of employees who are no longer part of regional Sul and should be excluded from reports
+const IGNORED_MATRICULAS = new Set([
+    "19971" // Leandro Brito Ranieri
+]);
+
 // Application Global State
 const state = {
     rawRecords: [],       // Raw normalized submissions from CSV
@@ -263,6 +268,9 @@ function normalizeData(parsedRows) {
             chapaNorm = rawMatricula.toLowerCase();
         }
 
+        // Exclude ignored collaborators (e.g. Leandro Brito Ranieri, no longer part of regional Sul)
+        if (IGNORED_MATRICULAS.has(chapaNorm)) return;
+
         const cubosCollab = state.cubosData[chapaNorm] || {};
         const finalCC = cubosCollab.cc || 'NÃO MAPEADO';
         const finalSecao = cubosCollab.secao || 'NÃO MAPEADA';
@@ -369,6 +377,9 @@ function buildCollaboratorComplianceMatrix() {
     // Handle collaborators who exist in CUBOS registry but have NOT submitted any DSC yet
     // This is critical to see 0% compliance employees who are completely pending!
     Object.keys(state.cubosData).forEach(chapa => {
+        // Exclude ignored collaborators (Leandro Brito Ranieri)
+        if (IGNORED_MATRICULAS.has(chapa)) return;
+        
         // Since we are limited to CGB SUL, let's make sure we only add CUBOS employees who belong to CGB SUL
         // The CUBOS sheet only contains CGB SUL anyway, so we add all of them if not already created
         if (!collabs[chapa]) {
