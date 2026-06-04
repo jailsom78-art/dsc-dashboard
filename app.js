@@ -83,8 +83,6 @@ const state = {
     
     // Chart instances (to destroy before re-render)
     charts: {
-        regional: null,
-        tipo: null,
         history: null,
         empresas: null,
         gerentes: null,
@@ -605,77 +603,6 @@ function renderCharts() {
         }
         return true;
     });
-
-    // --- CHART 1: PARTICIPAÇÃO POR REGIONAL ---
-    destroyChart('regional');
-    const regionalCounts = {};
-    data.forEach(row => {
-        regionalCounts[row.regional] = (regionalCounts[row.regional] || 0) + 1;
-    });
-    const regionalLabels = Object.keys(regionalCounts).sort();
-    const regionalValues = regionalLabels.map(lbl => regionalCounts[lbl]);
-
-    state.charts.regional = new Chart(document.getElementById('chart-regional'), {
-        type: 'bar',
-        data: {
-            labels: regionalLabels,
-            datasets: [{
-                label: 'Participações',
-                data: regionalValues,
-                backgroundColor: 'rgba(0, 92, 170, 0.75)',
-                borderColor: '#005caa',
-                borderWidth: 1,
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { ticks: { color: textCol }, grid: { display: false } },
-                y: { ticks: { color: textCol }, grid: { color: gridCol } }
-            }
-        }
-    });
-
-    // --- CHART 2: PRÓPRIOS VS PARCEIRAS (Doughnut) ---
-    destroyChart('tipo');
-    const tipoCounts = {};
-    data.forEach(row => {
-        tipoCounts[row.tipo] = (tipoCounts[row.tipo] || 0) + 1;
-    });
-    const tipoLabels = Object.keys(tipoCounts);
-    const tipoValues = tipoLabels.map(lbl => tipoCounts[lbl]);
-
-    state.charts.tipo = new Chart(document.getElementById('chart-tipo'), {
-        type: 'doughnut',
-        data: {
-            labels: tipoLabels,
-            datasets: [{
-                data: tipoValues,
-                backgroundColor: [
-                    'rgba(255, 128, 0, 0.8)', // Equatorial Orange for Partner
-                    'rgba(0, 168, 89, 0.8)',  // Equatorial Green
-                    'rgba(100, 116, 139, 0.8)'
-                ],
-                borderWidth: isDarkMode ? 2 : 1,
-                borderColor: isDarkMode ? '#0f1524' : '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: textCol, boxWidth: 12, font: { size: 11 } }
-                }
-            },
-            cutout: '65%'
-        }
-    });
-
     // --- CHART 3: HISTÓRICO DE ENVIOS MENSAL ---
     destroyChart('history');
     const monthlyCounts = {};
