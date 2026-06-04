@@ -271,7 +271,12 @@ function normalizeData(parsedRows) {
         // Exclude ignored collaborators (e.g. Leandro Brito Ranieri, no longer part of regional Sul)
         if (IGNORED_MATRICULAS.has(chapaNorm)) return;
 
-        const cubosCollab = state.cubosData[chapaNorm] || {};
+        const cubosCollab = state.cubosData[chapaNorm];
+        if (!cubosCollab) {
+            // Exclude terminated employees who are not on the active CUBOS roster
+            return;
+        }
+        
         const finalCC = cubosCollab.cc || 'NÃO MAPEADO';
         const finalSecao = cubosCollab.secao || 'NÃO MAPEADA';
         const finalFuncao = cubosCollab.funcao || 'NÃO MAPEADA';
