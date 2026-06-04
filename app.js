@@ -281,7 +281,7 @@ function normalizeData(parsedRows) {
             score: scoreVal,
             tema: rawTema,
             nome: rawNome,
-            matricula: rawMatricula,
+            matricula: chapaNorm,
             cidade: rawCidade,
             tipo: rawProprioParceira || 'NÃO INFORMADO',
             empresa: finalEmpresa,
