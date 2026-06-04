@@ -1,0 +1,27 @@
+# Python temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+
+# Local scratch scripts
+extract_cubos.py
+verify_dashboard_join.py
+verify_data.py
+check_names.py
+check_cgb_sul.py
+check_join_cgb_sul.py
+
+# Local raw Excel files (keep it secure)
+*.xlsx
+*.xls
+
+# Docker files (not needed for GitHub Pages)
+Dockerfile
+nginx.conf
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db

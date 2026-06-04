@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Relatórios DSC - Equatorial Pará</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- PapaParse for high-performance CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-mode"> <!-- Defaulting to dark mode for visual impact -->
+    
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Data Import / Welcome Screen -->
+    <div id="import-screen" class="import-screen hidden">
+        <div class="import-card glass">
+            <div class="logo">
+                <i class="fa-solid fa-bolt-lightning logo-icon"></i>
+                <div class="logo-text">EQUATORIAL <span>PARÁ</span></div>
+            </div>
+            <h2>Relatórios DSC & Conformidade</h2>
+            <p>Selecione ou arraste os arquivos de DSC (<strong>dados.csv</strong>) ou Cadastro (<strong>CUBOS-1 (2).xlsx</strong>) para inicializar o dashboard.</p>
+            
+            <div id="drop-zone" class="drop-zone">
+                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                <span>Arraste o arquivo <strong>dados.csv</strong> ou <strong>CUBOS.xlsx</strong> aqui</span>
+                <span class="or">ou</span>
+                <label for="csv-file-input" class="btn btn-primary">Escolher Arquivos</label>
+                <input type="file" id="csv-file-input" accept=".csv,.xlsx" multiple class="hidden">
+            </div>
+
+            <div class="import-tips">
+                <div class="tip-item">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span><strong>Segurança:</strong> Seus dados são processados inteiramente no navegador e salvos localmente. Nenhum dado é enviado para servidores externos.</span>
+                </div>
+            </div>
+            
+            <div id="import-loading" class="import-loading hidden">
+                <div class="spinner"></div>
+                <p id="import-loading-text">Processando registros...</p>
+                <div class="progress-bar-container">
+                    <div id="import-progress" class="progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Application Wrapper -->
+    <div id="app-container" class="app-container">
+        
+        <!-- Sidebar Navigation & Filters -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-bolt-lightning logo-icon"></i>
+                    <div class="logo-text">EQUATORIAL <span>PARÁ</span></div>
+                </div>
+                <button id="mobile-close-sidebar" class="mobile-only-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="sidebar-menu">
+                <div class="menu-section-title">Navegação</div>
+                <ul class="nav-tabs">
+                    <li class="nav-item active" data-tab="tab-visao-geral">
+                        <i class="fa-solid fa-chart-pie"></i><span>Visão Geral</span>
+                    </li>
+                    <li class="nav-item" data-tab="tab-pendencias">
+                        <i class="fa-solid fa-user-xmark"></i><span>Relatório de Pendências</span>
+                    </li>
+                    <li class="nav-item" data-tab="tab-colaborador">
+                        <i class="fa-solid fa-user-check"></i><span>Consulta por Colaborador</span>
+                    </li>
+                    <li class="nav-item" data-tab="tab-database">
+                        <i class="fa-solid fa-database"></i><span>Base de Dados</span>
+                    </li>
+                </ul>
+
+                <div class="menu-section-title filter-header">
+                    <span>Filtros Global</span>
+                    <button id="btn-clear-filters" class="btn-text" title="Limpar Filtros"><i class="fa-solid fa-rotate-left"></i> Limpar</button>
+                </div>
+
+                <!-- Global Filters Panel -->
+                <div class="filters-panel">
+                    <div class="filter-group">
+                        <label for="filter-search-name"><i class="fa-solid fa-magnifying-glass"></i> Busca Colaborador</label>
+                        <input type="text" id="filter-search-name" placeholder="Nome ou Matrícula...">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-tema"><i class="fa-solid fa-book-open"></i> Tema do DSC</label>
+                        <select id="filter-tema">
+                            <option value="">Todos os Temas</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-regional"><i class="fa-solid fa-map-location-dot"></i> Regional</label>
+                        <select id="filter-regional">
+                            <option value="">Todas as Regionais</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-gerente"><i class="fa-solid fa-user-tie"></i> Gerente</label>
+                        <select id="filter-gerente">
+                            <option value="">Todos os Gerentes</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-tipo"><i class="fa-solid fa-building-user"></i> Próprio ou Parceira?</label>
+                        <select id="filter-tipo">
+                            <option value="">Todos</option>
+                            <option value="PROPRIO EQUATORIAL">Próprio Equatorial</option>
+                            <option value="PARCEIRA">Parceira</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-empresa"><i class="fa-solid fa-industry"></i> Empresa</label>
+                        <select id="filter-empresa">
+                            <option value="">Todas as Empresas</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-cc"><i class="fa-solid fa-wallet"></i> Centro de Custo</label>
+                        <select id="filter-cc">
+                            <option value="">Todos os C. Custos</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-frente"><i class="fa-solid fa-helmet-safety"></i> Frente de Atuação</label>
+                        <select id="filter-frente">
+                            <option value="">Todas as Frentes</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="btn-reupload-csv" class="btn btn-secondary btn-block">
+                    <i class="fa-solid fa-file-csv"></i> Atualizar Banco CSV
+                </button>
+                <div class="version">Versão 1.2.0 • Local DB</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Pane -->
+        <main class="main-content">
+            
+            <!-- Top Navbar -->
+            <header class="navbar glass">
+                <div class="navbar-left">
+                    <button id="mobile-toggle-sidebar" class="mobile-only-btn"><i class="fa-solid fa-bars"></i></button>
+                    <h1 class="navbar-title">Painel de Acompanhamento DSC</h1>
+                </div>
+                <div class="navbar-right">
+                    <div id="db-status-badge" class="db-status-badge">
+                        <span class="status-dot green"></span>
+                        <span id="db-status-text">Sem dados</span>
+                    </div>
+                    <button id="btn-sync-sheets" class="theme-toggle-btn" title="Sincronizar Planilha Google">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button id="theme-toggle-btn" class="theme-toggle-btn" title="Alternar Tema">
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Tab Container -->
+            <div class="content-container">
+                
+                <!-- Tab: Visão Geral (Overview) -->
+                <section id="tab-visao-geral" class="tab-pane active">
+                    <!-- KPI Row -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card glass animate-fade-in">
+                            <div class="kpi-icon blue"><i class="fa-solid fa-users"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Total Participações</span>
+                                <h3 id="kpi-total-participations" class="kpi-value">-</h3>
+                                <span class="kpi-desc">Respostas totais na base</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass animate-fade-in" style="animation-delay: 0.1s">
+                            <div class="kpi-icon green"><i class="fa-solid fa-id-card"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Colaboradores Ativos</span>
+                                <h3 id="kpi-unique-employees" class="kpi-value">-</h3>
+                                <span class="kpi-desc">Matrículas identificadas</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass animate-fade-in" style="animation-delay: 0.2s">
+                            <div class="kpi-icon orange"><i class="fa-solid fa-star"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Nota Média Geral</span>
+                                <h3 id="kpi-average-score" class="kpi-value">-</h3>
+                                <span class="kpi-desc">Média das pontuações</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass animate-fade-in" style="animation-delay: 0.3s">
+                            <div class="kpi-icon purple"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Conformidade Global</span>
+                                <h3 id="kpi-compliance-rate" class="kpi-value">-</h3>
+                                <span class="kpi-desc">Média de conclusão de temas</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass animate-fade-in" style="animation-delay: 0.4s">
+                            <div class="kpi-icon teal"><i class="fa-solid fa-list-check"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-label">Módulos Mapeados</span>
+                                <h3 id="kpi-total-themes" class="kpi-value">-</h3>
+                                <span class="kpi-desc">Temas de DSC ativos</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Area -->
+                    <div class="charts-grid">
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Participação por Regional</h3>
+                                <div class="chart-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="chart-regional"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Distribuição Próprios vs Parceiras</h3>
+                                <div class="chart-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <div class="chart-body doughnut-container">
+                                <canvas id="chart-tipo"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card glass span-2">
+                            <div class="chart-header">
+                                <h3>Histórico de Envios de DSC (Mensal)</h3>
+                                <div class="chart-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="chart-history"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Top 10 Empresas Parceiras</h3>
+                                <div class="chart-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="chart-empresas"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Participações por Gerente (Top 10)</h3>
+                                <div class="chart-actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </div>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="chart-gerentes"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Relatório de Pendências -->
+                <section id="tab-pendencias" class="tab-pane">
+                    <div class="tab-header-actions">
+                        <div>
+                            <h2>Relatório de Conformidade e Pendências</h2>
+                            <p class="tab-subtitle">Identifique lacunas e gerencie a adimplência dos colaboradores nos temas de DSC.</p>
+                        </div>
+                        <div class="actions-buttons">
+                            <button id="btn-export-compliance" class="btn btn-secondary">
+                                <i class="fa-solid fa-file-excel"></i> Exportar Pendências
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Compliance Metric Filters Bar -->
+                    <div class="compliance-filter-bar glass">
+                        <div class="filter-item">
+                            <label for="compliance-filter-status">Situação de Pendência:</label>
+                            <select id="compliance-filter-status">
+                                <option value="all">Todos os Colaboradores</option>
+                                <option value="pending" selected>Apenas com Pendências (Incompletos)</option>
+                                <option value="compliant">100% Em Dia (Completos)</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="compliance-filter-tema-pendente">Verificar Tema Específico:</label>
+                            <select id="compliance-filter-tema-pendente">
+                                <option value="">Verificar Todos os Temas</option>
+                            </select>
+                        </div>
+                        <div class="filter-item-info">
+                            <div class="info-tag-group">
+                                <span class="info-tag warning"><i class="fa-solid fa-triangle-exclamation"></i> <span id="compliance-pending-count">0</span> Colaboradores Incompletos</span>
+                                <span class="info-tag success"><i class="fa-solid fa-check"></i> <span id="compliance-completed-count">0</span> Em Dia</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Compliance Table -->
+                    <div class="table-container glass">
+                        <div class="table-header">
+                            <div class="table-title">Lista de Conformidade</div>
+                            <div class="table-search">
+                                <input type="text" id="compliance-table-search" placeholder="Filtrar nesta tabela...">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="compliance-table">
+                                <thead>
+                                    <tr>
+                                        <th>Colaborador</th>
+                                        <th>Matrícula</th>
+                                        <th>Regional</th>
+                                        <th>Gerente</th>
+                                        <th>Empresa</th>
+                                        <th>C. Custo</th>
+                                        <th>Função</th>
+                                        <th class="center">Concluídos</th>
+                                        <th class="center">Pendentes</th>
+                                        <th>Status / Progresso</th>
+                                        <th class="center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="compliance-table-body">
+                                    <tr>
+                                        <td colspan="9" class="loading-td">Carregando dados...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-pagination">
+                            <div class="pagination-info" id="compliance-pagination-info">Mostrando 0 de 0 registros</div>
+                            <div class="pagination-controls">
+                                <button class="btn btn-icon" id="compliance-prev-page"><i class="fa-solid fa-chevron-left"></i></button>
+                                <span id="compliance-current-page" class="page-num">1</span>
+                                <button class="btn btn-icon" id="compliance-next-page"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Consulta Individual por Colaborador -->
+                <section id="tab-colaborador" class="tab-pane">
+                    <div class="colaborador-search-container glass">
+                        <h2>Consulta Individual e Compliance do Colaborador</h2>
+                        <p>Busque um colaborador por nome ou matrícula para verificar o histórico detalhado de DSC e módulos faltantes.</p>
+                        
+                        <div class="search-box-large">
+                            <i class="fa-solid fa-user-tag search-icon"></i>
+                            <input type="text" id="employee-detail-search-input" placeholder="Digite a matrícula ou nome do colaborador..." autocomplete="off">
+                            <button id="btn-search-employee" class="btn btn-primary">Buscar</button>
+                            
+                            <!-- Search Autocomplete Suggestions -->
+                            <div id="search-suggestions" class="search-suggestions hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Employee Details Display Sheet -->
+                    <div id="employee-detail-card" class="employee-detail-card-layout hidden">
+                        <!-- Profile Header -->
+                        <div class="detail-header-card glass">
+                            <div class="avatar-circle">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <div class="profile-info">
+                                <h2 id="emp-detail-name">Nome do Colaborador</h2>
+                                <div class="profile-meta-tags">
+                                    <span class="meta-tag"><i class="fa-solid fa-id-card"></i> Matrícula: <strong id="emp-detail-matricula">-</strong></span>
+                                    <span class="meta-tag"><i class="fa-solid fa-map-pin"></i> <span id="emp-detail-cidade">-</span> (<span id="emp-detail-regional">-</span>)</span>
+                                    <span class="meta-tag"><i class="fa-solid fa-building"></i> <span id="emp-detail-empresa">-</span></span>
+                                </div>
+                            </div>
+                            <div class="compliance-score-circle">
+                                <svg class="progress-ring" width="100" height="100">
+                                    <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="40" cx="50" cy="50"/>
+                                    <circle id="emp-progress-ring-value" class="progress-ring__circle" stroke="#00A859" stroke-width="8" fill="transparent" r="40" cx="50" cy="50" stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+                                </svg>
+                                <div class="percentage" id="emp-detail-percentage">0%</div>
+                                <div class="ring-label">Aproveitamento</div>
+                            </div>
+                        </div>
+
+                        <!-- Grid Columns -->
+                        <div class="detail-content-grid">
+                            <!-- Left Card: Meta info & Team Compliance -->
+                            <div class="detail-info-left glass">
+                                <h3>Informações Organizacionais</h3>
+                                <ul class="info-list">
+                                    <li>
+                                        <span class="label">Vínculo:</span>
+                                        <span class="value" id="emp-detail-vinculo">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Função (CUBOS):</span>
+                                        <span class="value" id="emp-detail-funcao">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Centro de Custo:</span>
+                                        <span class="value badge-score" id="emp-detail-cc" style="background-color: var(--eq-orange-alpha); color: var(--eq-orange)">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Frente de Atuação:</span>
+                                        <span class="value" id="emp-detail-frente">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Gerente Responsável:</span>
+                                        <span class="value" id="emp-detail-gerente">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Último Envio:</span>
+                                        <span class="value" id="emp-detail-ultimo-envio">-</span>
+                                    </li>
+                                    <li>
+                                        <span class="label">Nota Média DSC:</span>
+                                        <span class="value badge-score" id="emp-detail-nota-media">-</span>
+                                    </li>
+                                </ul>
+
+                                <div class="compliance-summary-mini">
+                                    <div class="mini-stat">
+                                        <span class="num completed" id="emp-detail-concluidos-count">0</span>
+                                        <span class="text">Módulos Concluídos</span>
+                                    </div>
+                                    <div class="mini-stat">
+                                        <span class="num pending" id="emp-detail-pendentes-count">0</span>
+                                        <span class="text">Módulos Pendentes</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Card: Modules Checklist -->
+                            <div class="detail-info-right glass">
+                                <div class="checklist-header">
+                                    <h3>Acompanhamento por Módulo</h3>
+                                    <div class="checklist-filters">
+                                        <button class="btn-chip active" id="chk-btn-all">Todos (<span id="chk-total">-</span>)</button>
+                                        <button class="btn-chip" id="chk-btn-completed">Concluídos (<span id="chk-concluidos">-</span>)</button>
+                                        <button class="btn-chip" id="chk-btn-pending">Pendentes (<span id="chk-pendentes">-</span>)</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="modules-checklist-wrapper" id="emp-modules-checklist">
+                                    <!-- Dynamic Checklist Items -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Placeholder Search Prompt -->
+                    <div id="employee-detail-placeholder" class="search-placeholder glass">
+                        <i class="fa-solid fa-address-book search-placeholder-icon"></i>
+                        <h3>Nenhum colaborador selecionado</h3>
+                        <p>Busque um colaborador na barra de pesquisa acima para visualizar o relatório completo de pendências.</p>
+                    </div>
+                </section>
+
+                <!-- Tab: Base de Dados (Database Grid) -->
+                <section id="tab-database" class="tab-pane">
+                    <div class="tab-header-actions">
+                        <div>
+                            <h2>Histórico de Envios (Dados Brutos)</h2>
+                            <p class="tab-subtitle">Consulte todas as respostas registradas do Diálogo Semanal de Segurança.</p>
+                        </div>
+                        <button id="btn-export-database" class="btn btn-secondary">
+                            <i class="fa-solid fa-file-arrow-down"></i> Exportar Dados Filtrados
+                        </button>
+                    </div>
+
+                    <!-- Data Table -->
+                    <div class="table-container glass">
+                        <div class="table-header">
+                            <div class="table-title">Registros de Envio</div>
+                            <div class="table-search">
+                                <input type="text" id="database-table-search" placeholder="Buscar na tabela...">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="database-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data/Hora</th>
+                                        <th>Matrícula</th>
+                                        <th>Colaborador</th>
+                                        <th>Regional</th>
+                                        <th>Gerente</th>
+                                        <th>Empresa</th>
+                                        <th>C. Custo</th>
+                                        <th>Função</th>
+                                        <th>Tema do DSC</th>
+                                        <th class="center">Pontuação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="database-table-body">
+                                    <tr>
+                                        <td colspan="8" class="loading-td">Aguardando dados...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-pagination">
+                            <div class="pagination-info" id="database-pagination-info">Mostrando 0 de 0 registros</div>
+                            <div class="pagination-controls">
+                                <button class="btn btn-icon" id="database-prev-page"><i class="fa-solid fa-chevron-left"></i></button>
+                                <span id="database-current-page" class="page-num">1</span>
+                                <button class="btn btn-icon" id="database-next-page"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Employee Detail Slide-Over Drawer (for quick access from table list) -->
+    <div id="employee-drawer" class="drawer-overlay hidden">
+        <div class="drawer glass">
+            <div class="drawer-header">
+                <h3>Detalhamento do Colaborador</h3>
+                <button id="btn-close-drawer" class="drawer-close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="drawer-body" id="drawer-body-content">
+                <!-- Content injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Entry -->
+    <script src="app.js"></script>
+</body>
+</html>
