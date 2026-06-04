@@ -1306,24 +1306,27 @@ function clearAllFilters(reApply = true) {
 // Client-Side parsing of CUBOS xlsx file structure
 function parseSheetJSRows(rows) {
     if (rows.length === 0) return {};
-    const headers = rows[0].map(h => String(h || '').trim().toUpperCase());
     
-    let chapaIdx = headers.indexOf('CHAPA');
-    let nomeIdx = headers.indexOf('NOME');
-    let ccIdx = headers.indexOf('RATEIO_FUNCIONARIO');
-    let secaoIdx = headers.indexOf('SEO');
-    if (secaoIdx === -1) secaoIdx = headers.indexOf('SEÇÃO');
-    let funcaoIdx = headers.indexOf('FUNO');
-    if (funcaoIdx === -1) funcaoIdx = headers.indexOf('FUNÇÃO');
-    let situacaoIdx = headers.indexOf('SITUAO');
-    if (situacaoIdx === -1) situacaoIdx = headers.indexOf('SITUAÇÃO');
+    // Normalize headers: uppercase, trim and remove non-alphanumeric chars to avoid encoding replacement character issues
+    const headers = rows[0].map(h => {
+        let str = String(h || '').trim().toUpperCase();
+        return str.replace(/[^A-Z0-9]/g, ''); // removes replacement chars like 
+    });
     
+    let chapaIdx = headers.findIndex(h => h.includes('CHAPA'));
+    let nomeIdx = headers.findIndex(h => h.includes('NOME'));
+    let ccIdx = headers.findIndex(h => h.includes('RATEIO') || h.includes('CC'));
+    let secaoIdx = headers.findIndex(h => h.includes('SEO') || h.includes('SECA') || h.includes('SEC'));
+    let funcaoIdx = headers.findIndex(h => h.includes('FUN') || h.includes('CARGO'));
+    let situacaoIdx = headers.findIndex(h => h.includes('SITU'));
+    
+    // Fallbacks if headers not detected
     if (chapaIdx === -1) chapaIdx = 0;
     if (nomeIdx === -1) nomeIdx = 1;
-    if (ccIdx === -1) ccIdx = 4;
-    if (secaoIdx === -1) secaoIdx = 5;
-    if (funcaoIdx === -1) funcaoIdx = 6;
-    if (situacaoIdx === -1) situacaoIdx = 3;
+    if (ccIdx === -1) ccIdx = headers.length > 3 ? 3 : 2;
+    if (funcaoIdx === -1) funcaoIdx = headers.length > 4 ? 4 : 3;
+    if (situacaoIdx === -1) situacaoIdx = headers.length > 2 ? 2 : 1;
+    // secaoIdx is allowed to remain -1 if missing (e.g. CUBOS_Atualizado)
 
     const mapping = {};
     for (let i = 1; i < rows.length; i++) {
@@ -1340,10 +1343,10 @@ function parseSheetJSRows(rows) {
             chapaNormalized = chapaVal.toLowerCase();
         }
         
-        const cc = String(r[ccIdx] || '').trim() || 'NÃO MAPEADO';
-        const secao = String(r[secaoIdx] || '').trim() || 'NÃO MAPEADA';
-        const funcao = String(r[funcaoIdx] || '').trim() || 'NÃO MAPEADA';
-        const situacao = String(r[situacaoIdx] || '').trim() || 'ATIVO';
+        const cc = ccIdx !== -1 ? (String(r[ccIdx] || '').trim() || 'NÃO MAPEADO') : 'NÃO MAPEADO';
+        const secao = secaoIdx !== -1 ? (String(r[secaoIdx] || '').trim() || 'NÃO MAPEADA') : 'NÃO MAPEADA';
+        const funcao = funcaoIdx !== -1 ? (String(r[funcaoIdx] || '').trim() || 'NÃO MAPEADA') : 'NÃO MAPEADA';
+        const situacao = situacaoIdx !== -1 ? (String(r[situacaoIdx] || '').trim() || 'ATIVO') : 'ATIVO';
         
         mapping[chapaNormalized] = {
             nome: String(r[nomeIdx] || '').trim().toUpperCase(),
@@ -1805,30 +1808,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAIN INITIALIZATION FLOW ---
     
-    // Step 1: Load CUBOS cost center mapping
-    loadFromDB('cubos_dataset')
-        .then(savedCubos => {
-            if (savedCubos && Object.keys(savedCubos).length > 0) {
-                console.log("CUBOS data loaded from IndexedDB:", Object.keys(savedCubos).length);
-                state.cubosData = savedCubos;
-                return Promise.resolve();
-            } else {
-                console.log("CUBOS database empty. Trying to fetch cadastro_cubos.json...");
-                return fetch('cadastro_cubos.json')
-                    .then(r => {
-                        if (!r.ok) throw new Error('cadastro_cubos.json not found');
-                        return r.json();
-                    })
-                    .then(jsonData => {
-                        state.cubosData = jsonData;
-                        return saveToDB(jsonData, 'cubos_dataset');
-                    })
-                    .catch(err => {
-                        console.log("Auto-fetch CUBOS mapping failed:", err.message);
-                        return Promise.resolve(); // Fallback to empty CUBOS, join will default to "NÃO MAPEADO"
-                    });
-            }
+    // Step 1: Load CUBOS cost center mapping (Always try to fetch latest online, fallback to IndexedDB)
+    console.log("Tentando obter cadastro CUBOS atualizado...");
+    const loadCubosPromise = fetch('cadastro_cubos.json')
+        .then(r => {
+            if (!r.ok) throw new Error('cadastro_cubos.json not found');
+            return r.json();
         })
+        .then(jsonData => {
+            console.log("CUBOS registry loaded from server:", Object.keys(jsonData).length);
+            state.cubosData = jsonData;
+            return saveToDB(jsonData, 'cubos_dataset');
+        })
+        .catch(err => {
+            console.log("Auto-fetch CUBOS failed. Fallback to IndexedDB local cache:", err.message);
+            return loadFromDB('cubos_dataset')
+                .then(savedCubos => {
+                    if (savedCubos && Object.keys(savedCubos).length > 0) {
+                        console.log("CUBOS data loaded from IndexedDB local cache:", Object.keys(savedCubos).length);
+                        state.cubosData = savedCubos;
+                    } else {
+                        console.log("No CUBOS cache found. Join will default to 'NÃO MAPEADO'.");
+                    }
+                });
+        });
+
+    loadCubosPromise
         .then(() => {
             // Step 2: Try to load DSC training dataset directly from Google Sheets (Real-Time Sync)
             console.log("Tentando obter dados em tempo real da Planilha Google...");
