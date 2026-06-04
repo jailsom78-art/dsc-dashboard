@@ -5,12 +5,44 @@
  * and cost center cross-referencing with CUBOS.
  */
 
+// 28 Official DSC Themes
+const OFFICIAL_THEMES = [
+    "TEMA 1 - COMUNICACAO NAO VIOLENTA",
+    "TEMA 2 - ATENDIMENTO HUMANIZADO",
+    "TEMA 3 - COMUNICACAO CLARA E EFICAZ",
+    "TEMA 4 - POSTURA E APRESENTACAO PROFISSIONAL",
+    "TEMA 5 - RESOLUCAO DE CONFLITOS",
+    "TEMA 6 - ETICA NO ATENDIMENTO AO CLIENTE",
+    "TEMA 7 - PEDIDO DE PROPINA O QUE E E COMO AGIR",
+    "TEMA 8 - SERVICO MAL EXECUTADO E SUAS CONSEQUENCIAS",
+    "TEMA 9 - DESVIO DE FUNCAO O QUE PODE E O QUE NAO PODE",
+    "TEMA 10 - RESPEITO AO CLIENTE E AO PATRIMONIO",
+    "TEMA 11 - MA CONDUTA NO ATENDIMENTO AO CLIENTE",
+    "TEMA 12 - POSTURA E APRESENTACAO PROFISSIONAL",
+    "TEMA 13 - FINALIZACAO CORRETA DO ATENDIMENTO",
+    "TEMA 14 - LINGUAGEM CORPORAL E COMPORTAMENTO NO LOCAL",
+    "TEMA 15 - RESPONSABILIDADE SOBRE O SERVICO EXECUTADO",
+    "TEMA 16 - COMO AGIR DURANTE A EXECUCAO DO SERVICO DE CORTE",
+    "TEMA 17 - USO ADEQUADO DO CELULAR DURANTE O ATENDIMENTO",
+    "TEMA 18 - COMO AGIR DIANTE DE RECLAMACOES DO CLIENTE",
+    "TEMA 19 - NOVA FATURA DE ENERGIA COMO ORIENTAR O CLIENTE",
+    "TEMA 20 - PEQUENAS ATITUDES QUE FAZEM DIFERENCA PARA O CLIENTE",
+    "TEMA 21 - APRENDENDO COM OS ERROS DO DIA A DIA",
+    "TEMA 22 - QUANDO E COMO ACIONAR A LIDERANCA",
+    "TEMA 23 - COMPORTAMENTOS QUE GERAM RECLAMACOES",
+    "TEMA 24 - NOVA COMUNICACAO COM O CLIENTE EM INTERRUPCOES DE ENERGIA",
+    "TEMA 25 - TRANSPARENCIA NAS INFORMACOES",
+    "TEMA 26 - COMO EVITAR RETRABALHO E RETORNOS DESNECESSARIOS",
+    "TEMA 27 - RESPONSABILIDADE SOCIAL NO ATENDIMENTO AO CLIENTE",
+    "TEMA 28 - COMO LIDAR COM CLIENTES EXALTADOS OU NERVOSOS"
+];
+
 // Application Global State
 const state = {
     rawRecords: [],       // Raw normalized submissions from CSV
     collaborators: {},    // Map: matricula -> { profile, completedThemes: { theme: { date, score } } }
     cubosData: {},        // Map: chapa -> { cc, secao, funcao, situacao }
-    masterThemes: [],     // Array of all unique themes
+    masterThemes: [...OFFICIAL_THEMES],     // Array of all 28 official themes
     uniqueRegionals: [],
     uniqueManagers: [],
     uniqueCompanies: [],
@@ -146,10 +178,22 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+// Normalizes theme name based on theme number matching to official themes list
+function normalizeThemeName(rawTema) {
+    if (!rawTema) return '';
+    const match = rawTema.match(/TEMA\s*(\d+)/i);
+    if (match) {
+        const themeNum = parseInt(match[1], 10);
+        if (themeNum >= 1 && themeNum <= OFFICIAL_THEMES.length) {
+            return OFFICIAL_THEMES[themeNum - 1];
+        }
+    }
+    return rawTema.trim().toUpperCase();
+}
+
 // Normalizes raw parsed CSV rows
 function normalizeData(parsedRows) {
     const normalized = [];
-    const themesSet = new Set();
     const regionalsSet = new Set();
     const managersSet = new Set();
     const companiesSet = new Set();
@@ -160,10 +204,8 @@ function normalizeData(parsedRows) {
         // Skip empty rows or header duplicate rows
         if (!row['MATRICULA'] && !row['NOME COMPLETO']) return;
 
-        // Populate master themes set from ALL rows in the spreadsheet before filtering CGB/SUL
-        // This ensures the dashboard knows all 14 themes and calculates compliance gaps out of 14, not 7
-        const rawTema = (row['CONFIRME O TEMA DO DSC'] || '').trim().toUpperCase();
-        if (rawTema) themesSet.add(rawTema);
+        // Populate master themes using the 28 official themes checklist
+        const rawTema = normalizeThemeName(row['CONFIRME O TEMA DO DSC'] || '');
 
         // Clean up basic text fields
         const rawProprioParceira = (row['PROPRIO OU PARCEIRA?'] || '').trim().toUpperCase();
@@ -255,7 +297,7 @@ function normalizeData(parsedRows) {
         });
     });
 
-    state.masterThemes = Array.from(themesSet).sort();
+    state.masterThemes = [...OFFICIAL_THEMES];
     state.uniqueRegionals = Array.from(regionalsSet).sort();
     state.uniqueManagers = Array.from(managersSet).sort();
     state.uniqueCompanies = Array.from(companiesSet).sort();
