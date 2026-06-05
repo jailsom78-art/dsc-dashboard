@@ -804,38 +804,75 @@ function renderCharts() {
         }
     });
 
-    // --- CHART 5: DESEMPENHO POR GERENTE (Top 10 Horizontal Bar) ---
+    // --- CHART 5: CONCLUSÃO DE TEMAS POR CENTRO DE CUSTO (Stacked Bar) ---
     destroyChart('gerentes');
-    const mgrCounts = {};
-    data.forEach(row => {
-        if (row.gerente && !row.gerente.includes('NÃO INFORMADO')) {
-            mgrCounts[row.gerente] = (mgrCounts[row.gerente] || 0) + 1;
+    const ccStats = {};
+    globalFilteredCollabs.forEach(collab => {
+        const cc = collab.cc || 'NÃO MAPEADO';
+        if (!ccStats[cc]) {
+            ccStats[cc] = { realizados: 0, pendentes: 0 };
         }
+        ccStats[cc].realizados += collab.submissionsCount || 0;
+        ccStats[cc].pendentes += collab.pendingCount || 0;
     });
-    const sortedMgrs = Object.keys(mgrCounts).sort((a, b) => mgrCounts[b] - a).slice(0, 10);
-    const mgrValues = sortedMgrs.map(m => mgrCounts[m]);
+
+    const sortedCCCompliance = Object.keys(ccStats).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
     state.charts.gerentes = new Chart(document.getElementById('chart-gerentes'), {
         type: 'bar',
         data: {
-            labels: sortedMgrs.map(m => m.split(' ')[0] + ' ' + (m.split(' ')[1] || '')),
-            datasets: [{
-                label: 'Envios',
-                data: mgrValues,
-                backgroundColor: 'rgba(6, 182, 212, 0.75)',
-                borderColor: '#06b6d4',
-                borderWidth: 1,
-                borderRadius: 6
-            }]
+            labels: sortedCCCompliance,
+            datasets: [
+                {
+                    label: 'Realizados',
+                    data: sortedCCCompliance.map(cc => ccStats[cc].realizados),
+                    backgroundColor: 'rgba(0, 168, 89, 0.75)', // Equatorial Green
+                    borderColor: '#00a859',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Pendentes',
+                    data: sortedCCCompliance.map(cc => ccStats[cc].pendentes),
+                    backgroundColor: 'rgba(239, 68, 68, 0.75)', // Red
+                    borderColor: '#ef4444',
+                    borderWidth: 1
+                }
+            ]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: { color: textCol, boxWidth: 12, font: { size: 11 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const datasetLabel = context.dataset.label || '';
+                            const value = context.raw || 0;
+                            const cc = context.label;
+                            const total = ccStats[cc].realizados + ccStats[cc].pendentes;
+                            const pct = total > 0 ? (value / total) * 100 : 0;
+                            return `${datasetLabel}: ${value} (${pct.toFixed(1)}%)`;
+                        }
+                    }
+                }
+            },
             scales: {
-                x: { ticks: { color: textCol }, grid: { color: gridCol } },
-                y: { ticks: { color: textCol }, grid: { display: false } }
+                x: {
+                    stacked: true,
+                    ticks: { color: textCol },
+                    grid: { color: gridCol }
+                },
+                y: {
+                    stacked: true,
+                    ticks: { color: textCol },
+                    grid: { display: false }
+                }
             }
         }
     });
