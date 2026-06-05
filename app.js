@@ -584,57 +584,74 @@ function populateFilterSelects() {
     });
 }
 
+// Helper to determine if a collaborator matches the current global filters (demographics)
+function isCollabMatchingFilters(collab, query = '') {
+    if (state.filters.regional && collab.regional !== state.filters.regional) return false;
+    if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
+    if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
+    if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
+    if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
+    if (state.filters.frente && collab.frente !== state.filters.frente) return false;
+
+    const s = (query || state.filters.search || '').toLowerCase().trim();
+    if (s) {
+        const matchesName = (collab.nome || '').toLowerCase().includes(s);
+        const matchesMatricula = (collab.matricula || '').toLowerCase().includes(s);
+        const matchesCC = (collab.cc || '').toLowerCase().includes(s);
+        const matchesFuncao = (collab.funcao || '').toLowerCase().includes(s);
+        if (!matchesName && !matchesMatricula && !matchesCC && !matchesFuncao) return false;
+    }
+    return true;
+}
+
+// Helper to determine if a raw record matches the current global filters (including theme filter if active)
+function isRecordMatchingFilters(row, query = '') {
+    if (state.filters.tema && row.tema !== state.filters.tema) return false;
+    if (state.filters.regional && row.regional !== state.filters.regional) return false;
+    if (state.filters.gerente && row.gerente !== state.filters.gerente) return false;
+    if (state.filters.tipo && row.tipo !== state.filters.tipo) return false;
+    if (state.filters.empresa && row.empresa !== state.filters.empresa) return false;
+    if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(row.cc)) return false;
+    if (state.filters.frente && row.frente !== state.filters.frente) return false;
+
+    const s = (query || state.filters.search || '').toLowerCase().trim();
+    if (s) {
+        const matchesName = (row.nome || '').toLowerCase().includes(s);
+        const matchesMatricula = (row.matricula || '').toLowerCase().includes(s);
+        const matchesCC = (row.cc || '').toLowerCase().includes(s);
+        const matchesTema = (row.tema || '').toLowerCase().includes(s);
+        if (!matchesName && !matchesMatricula && !matchesCC && !matchesTema) return false;
+    }
+    return true;
+}
+
 // Core filter function applied to the entire dataset
 function applyFilters() {
     // 1. Filter Raw Submissions
-    state.databaseTable.filteredData = state.rawRecords.filter(row => {
-        if (state.filters.tema && row.tema !== state.filters.tema) return false;
-        if (state.filters.regional && row.regional !== state.filters.regional) return false;
-        if (state.filters.gerente && row.gerente !== state.filters.gerente) return false;
-        if (state.filters.tipo && row.tipo !== state.filters.tipo) return false;
-        if (state.filters.empresa && row.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(row.cc)) return false; // Filter CC
-        if (state.filters.frente && row.frente !== state.filters.frente) return false;
-        
-        if (state.filters.search) {
-            const s = state.filters.search.toLowerCase();
-            const matchesName = row.nome.toLowerCase().includes(s);
-            const matchesMatricula = row.matricula.toLowerCase().includes(s);
-            const matchesCC = (row.cc || '').toLowerCase().includes(s);
-            if (!matchesName && !matchesMatricula && !matchesCC) return false;
-        }
-        return true;
-    });
+    state.databaseTable.filteredData = state.rawRecords.filter(row => isRecordMatchingFilters(row));
 
     // 2. Filter Collaborators compliance lists
     const collabsList = Object.values(state.collaborators);
     state.complianceTable.filteredData = collabsList.filter(collab => {
-        if (state.filters.tema && !collab.completedThemes[state.filters.tema]) return false;
-        if (state.filters.regional && collab.regional !== state.filters.regional) return false;
-        if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
-        if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
-        if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false; // Filter CC
-        if (state.filters.frente && collab.frente !== state.filters.frente) return false;
-
-        if (state.filters.search) {
-            const s = state.filters.search.toLowerCase();
-            const matchesName = collab.nome.toLowerCase().includes(s);
-            const matchesMatricula = collab.matricula.toLowerCase().includes(s);
-            const matchesCC = (collab.cc || '').toLowerCase().includes(s);
-            if (!matchesName && !matchesMatricula && !matchesCC) return false;
-        }
-
         // Compliance Tab specific filters (Situation: Compliant vs Pending)
         const situationFilter = document.getElementById('compliance-filter-status').value;
-        if (situationFilter === 'pending' && collab.pendingCount === 0) return false;
-        if (situationFilter === 'compliant' && collab.pendingCount > 0) return false;
+        const themeFocus = state.filters.tema || document.getElementById('compliance-filter-tema-pendente').value;
+        
+        let completed = false;
+        let pendingCount = collab.pendingCount;
+        if (themeFocus) {
+            completed = !!(collab.completedThemes && collab.completedThemes[themeFocus]);
+            pendingCount = completed ? 0 : 1;
+        }
+
+        if (situationFilter === 'pending' && pendingCount === 0) return false;
+        if (situationFilter === 'compliant' && pendingCount > 0) return false;
 
         // Specific theme pendency filter: shows only employees who have NOT completed this specific theme
         const pendingTemaFilter = document.getElementById('compliance-filter-tema-pendente').value;
-        if (pendingTemaFilter && collab.completedThemes[pendingTemaFilter]) return false;
+        if (pendingTemaFilter && collab.completedThemes && collab.completedThemes[pendingTemaFilter]) return false;
 
-        return true;
+        return isCollabMatchingFilters(collab);
     });
 
     // Reset pagination to first page after filters change
@@ -651,15 +668,7 @@ function applyFilters() {
 // Calculations and updates for Top Overview KPIs
 function updateDashboardKPIs() {
     const activeData = state.databaseTable.filteredData;
-    const activeCollabs = Object.values(state.collaborators).filter(collab => {
-        if (state.filters.regional && collab.regional !== state.filters.regional) return false;
-        if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
-        if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
-        if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
-        if (state.filters.frente && collab.frente !== state.filters.frente) return false;
-        return true;
-    });
+    const activeCollabs = Object.values(state.collaborators).filter(collab => isCollabMatchingFilters(collab));
 
     document.getElementById('kpi-total-participations').textContent = activeData.length.toLocaleString('pt-BR');
     document.getElementById('kpi-unique-employees').textContent = activeCollabs.length.toLocaleString('pt-BR');
@@ -673,7 +682,12 @@ function updateDashboardKPIs() {
 
     let complianceSum = 0;
     if (activeCollabs.length > 0) {
-        complianceSum = activeCollabs.reduce((acc, collab) => acc + collab.complianceRate, 0) / activeCollabs.length;
+        if (state.filters.tema) {
+            const completedCount = activeCollabs.filter(collab => collab.completedThemes && collab.completedThemes[state.filters.tema]).length;
+            complianceSum = (completedCount / activeCollabs.length) * 100;
+        } else {
+            complianceSum = activeCollabs.reduce((acc, collab) => acc + collab.complianceRate, 0) / activeCollabs.length;
+        }
     }
     document.getElementById('kpi-compliance-rate').textContent = complianceSum.toFixed(1) + '%';
     document.getElementById('kpi-total-themes').textContent = state.masterThemes.length;
@@ -697,24 +711,7 @@ function renderCharts() {
     // Compute cohort filtered only by global/sidebar filters, not by compliance-tab-specific filters.
     // This is used for compliance-by-role and compliance-by-theme charts.
     const collabsList = Object.values(state.collaborators);
-    const globalFilteredCollabs = collabsList.filter(collab => {
-        if (state.filters.tema && !collab.completedThemes[state.filters.tema]) return false;
-        if (state.filters.regional && collab.regional !== state.filters.regional) return false;
-        if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
-        if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
-        if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-        if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
-        if (state.filters.frente && collab.frente !== state.filters.frente) return false;
-
-        if (state.filters.search) {
-            const s = state.filters.search.toLowerCase();
-            const matchesName = collab.nome.toLowerCase().includes(s);
-            const matchesMatricula = collab.matricula.toLowerCase().includes(s);
-            const matchesCC = (collab.cc || '').toLowerCase().includes(s);
-            if (!matchesName && !matchesMatricula && !matchesCC) return false;
-        }
-        return true;
-    });
+    const globalFilteredCollabs = collabsList.filter(collab => isCollabMatchingFilters(collab));
     // --- CHART 3: HISTÓRICO DE ENVIOS MENSAL ---
     destroyChart('history');
     const monthlyCounts = {};
@@ -812,8 +809,17 @@ function renderCharts() {
         if (!ccStats[cc]) {
             ccStats[cc] = { realizados: 0, pendentes: 0 };
         }
-        ccStats[cc].realizados += collab.submissionsCount || 0;
-        ccStats[cc].pendentes += collab.pendingCount || 0;
+        if (state.filters.tema) {
+            const completed = !!(collab.completedThemes && collab.completedThemes[state.filters.tema]);
+            if (completed) {
+                ccStats[cc].realizados += 1;
+            } else {
+                ccStats[cc].pendentes += 1;
+            }
+        } else {
+            ccStats[cc].realizados += collab.submissionsCount || 0;
+            ccStats[cc].pendentes += collab.pendingCount || 0;
+        }
     });
 
     const sortedCCCompliance = Object.keys(ccStats).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -887,7 +893,10 @@ function renderCharts() {
         if (!roleStats[role]) {
             roleStats[role] = { sum: 0, count: 0 };
         }
-        roleStats[role].sum += collab.complianceRate;
+        const comp = state.filters.tema 
+            ? (collab.completedThemes && collab.completedThemes[state.filters.tema] ? 100 : 0)
+            : collab.complianceRate;
+        roleStats[role].sum += comp;
         roleStats[role].count += 1;
     });
 
@@ -1038,16 +1047,38 @@ function renderComplianceTable() {
     const tableBody = document.getElementById('compliance-table-body');
     const filteredCollabs = state.complianceTable.filteredData;
     
+    const themeFocus = state.filters.tema || document.getElementById('compliance-filter-tema-pendente').value;
+    
+    // Create a mapped array for rendering/sorting
+    const mappedCollabs = filteredCollabs.map(collab => {
+        if (themeFocus) {
+            const completed = !!(collab.completedThemes && collab.completedThemes[themeFocus]);
+            return {
+                ...collab,
+                displayComplianceRate: completed ? 100 : 0,
+                displayPendingCount: completed ? 0 : 1,
+                displaySubmissionsCount: completed ? 1 : 0
+            };
+        } else {
+            return {
+                ...collab,
+                displayComplianceRate: collab.complianceRate,
+                displayPendingCount: collab.pendingCount,
+                displaySubmissionsCount: collab.submissionsCount
+            };
+        }
+    });
+
     // Sort collabs by compliance rate ascending (lowest compliance first to highlight critical pending employees)
-    filteredCollabs.sort((a,b) => a.complianceRate - b.complianceRate);
+    mappedCollabs.sort((a,b) => a.displayComplianceRate - b.displayComplianceRate);
 
     // Calculate totals for metadata tags
-    const pendingTotal = filteredCollabs.filter(c => c.pendingCount > 0).length;
-    const compliantTotal = filteredCollabs.filter(c => c.pendingCount === 0).length;
+    const pendingTotal = mappedCollabs.filter(c => c.displayPendingCount > 0).length;
+    const compliantTotal = mappedCollabs.filter(c => c.displayPendingCount === 0).length;
     document.getElementById('compliance-pending-count').textContent = pendingTotal;
     document.getElementById('compliance-completed-count').textContent = compliantTotal;
 
-    if (filteredCollabs.length === 0) {
+    if (mappedCollabs.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="11" class="loading-td">Nenhum colaborador encontrado com os filtros selecionados.</td></tr>`;
         document.getElementById('compliance-pagination-info').textContent = 'Mostrando 0 de 0 colaboradores';
         return;
@@ -1056,33 +1087,22 @@ function renderComplianceTable() {
     // Pagination bounds
     const page = state.complianceTable.currentPage;
     const size = state.complianceTable.pageSize;
-    const totalItems = filteredCollabs.length;
+    const totalItems = mappedCollabs.length;
     const totalPages = Math.ceil(totalItems / size);
     
     if (page > totalPages) state.complianceTable.currentPage = totalPages;
     const startIndex = (state.complianceTable.currentPage - 1) * size;
     const endIndex = Math.min(startIndex + size, totalItems);
     
-    const paginatedItems = filteredCollabs.slice(startIndex, endIndex);
+    const paginatedItems = mappedCollabs.slice(startIndex, endIndex);
 
     tableBody.innerHTML = '';
     paginatedItems.forEach(collab => {
         const tr = document.createElement('tr');
         
         let fillClass = 'low';
-        if (collab.complianceRate >= 75) fillClass = 'high';
-        else if (collab.complianceRate >= 40) fillClass = 'medium';
-
-        const specificThemeSelected = document.getElementById('compliance-filter-tema-pendente').value;
-        let pendingTextCell = '';
-        
-        if (specificThemeSelected) {
-            pendingTextCell = `<span class="badge pending"><i class="fa-solid fa-triangle-exclamation"></i> Pendente</span>`;
-        } else {
-            pendingTextCell = collab.pendingCount === 0 
-                ? `<span class="badge completed"><i class="fa-solid fa-check"></i> Em Dia</span>`
-                : `<span class="badge pending">${collab.pendingCount} Pendente${collab.pendingCount > 1 ? 's' : ''}</span>`;
-        }
+        if (collab.displayComplianceRate >= 75) fillClass = 'high';
+        else if (collab.displayComplianceRate >= 40) fillClass = 'medium';
 
         // Render with new CC and Job Role columns
         tr.innerHTML = `
@@ -1093,13 +1113,13 @@ function renderComplianceTable() {
             <td>${collab.empresa}</td>
             <td><code style="color:var(--eq-orange); font-weight:700">${collab.cc}</code></td>
             <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis" title="${collab.funcao}">${collab.funcao}</td>
-            <td class="center font-secondary"><strong>${collab.submissionsCount}</strong></td>
-            <td class="center font-secondary">${collab.pendingCount}</td>
+            <td class="center font-secondary"><strong>${collab.displaySubmissionsCount}</strong></td>
+            <td class="center font-secondary">${collab.displayPendingCount}</td>
             <td>
                 <div class="progress-bar-cell">
-                    <span class="percent-val">${collab.complianceRate.toFixed(0)}%</span>
+                    <span class="percent-val">${collab.displayComplianceRate.toFixed(0)}%</span>
                     <div class="bar-bg">
-                        <div class="bar-fill ${fillClass}" style="width: ${collab.complianceRate}%"></div>
+                        <div class="bar-fill ${fillClass}" style="width: ${collab.displayComplianceRate}%"></div>
                     </div>
                 </div>
             </td>
@@ -1693,22 +1713,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const collabsList = Object.values(state.collaborators);
         
         state.complianceTable.filteredData = collabsList.filter(collab => {
-            if (state.filters.tema && !collab.completedThemes[state.filters.tema]) return false;
-            if (state.filters.regional && collab.regional !== state.filters.regional) return false;
-            if (state.filters.gerente && collab.gerente !== state.filters.gerente) return false;
-            if (state.filters.tipo && collab.tipo !== state.filters.tipo) return false;
-            if (state.filters.empresa && collab.empresa !== state.filters.empresa) return false;
-            if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(collab.cc)) return false;
-            if (state.filters.frente && collab.frente !== state.filters.frente) return false;
-            
             const situationFilter = document.getElementById('compliance-filter-status').value;
-            if (situationFilter === 'pending' && collab.pendingCount === 0) return false;
-            if (situationFilter === 'compliant' && collab.pendingCount > 0) return false;
+            const themeFocus = state.filters.tema || document.getElementById('compliance-filter-tema-pendente').value;
+            
+            let completed = false;
+            let pendingCount = collab.pendingCount;
+            if (themeFocus) {
+                completed = !!(collab.completedThemes && collab.completedThemes[themeFocus]);
+                pendingCount = completed ? 0 : 1;
+            }
+
+            if (situationFilter === 'pending' && pendingCount === 0) return false;
+            if (situationFilter === 'compliant' && pendingCount > 0) return false;
 
             const pendingTemaFilter = document.getElementById('compliance-filter-tema-pendente').value;
-            if (pendingTemaFilter && collab.completedThemes[pendingTemaFilter]) return false;
+            if (pendingTemaFilter && collab.completedThemes && collab.completedThemes[pendingTemaFilter]) return false;
 
-            return collab.nome.toLowerCase().includes(query) || collab.matricula.toLowerCase().includes(query) || collab.cc.toLowerCase().includes(query) || collab.funcao.toLowerCase().includes(query);
+            return isCollabMatchingFilters(collab, query);
         });
 
         state.complianceTable.currentPage = 1;
@@ -1733,20 +1754,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Database Table search & Pagination ---
     document.getElementById('database-table-search').addEventListener('input', function() {
         const query = this.value.toLowerCase().trim();
-        state.databaseTable.filteredData = state.rawRecords.filter(row => {
-            if (state.filters.tema && row.tema !== state.filters.tema) return false;
-            if (state.filters.regional && row.regional !== state.filters.regional) return false;
-            if (state.filters.gerente && row.gerente !== state.filters.gerente) return false;
-            if (state.filters.tipo && row.tipo !== state.filters.tipo) return false;
-            if (state.filters.empresa && row.empresa !== state.filters.empresa) return false;
-            if (state.filters.cc && state.filters.cc.length > 0 && !state.filters.cc.includes(row.cc)) return false;
-            if (state.filters.frente && row.frente !== state.filters.frente) return false;
-
-            return row.nome.toLowerCase().includes(query) || 
-                   row.matricula.toLowerCase().includes(query) || 
-                   row.cc.toLowerCase().includes(query) || 
-                   row.tema.toLowerCase().includes(query);
-        });
+        state.databaseTable.filteredData = state.rawRecords.filter(row => isRecordMatchingFilters(row, query));
 
         state.databaseTable.currentPage = 1;
         renderDatabaseTable();
@@ -1955,7 +1963,13 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Conectando ao Google Sheets...', 'info');
         }
 
-        return fetch(googleSheetUrl)
+        return fetch(googleSheetUrl + '&_cb=' + Date.now(), {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        })
             .then(res => {
                 if (!res.ok) throw new Error('Falha HTTP ao carregar planilha Google');
                 return res.text();
