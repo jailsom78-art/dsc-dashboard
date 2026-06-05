@@ -218,7 +218,12 @@ function normalizeData(parsedRows) {
         const rawParceiraEmpresa = (row['EMPRESA'] || '').trim().toUpperCase();
         const rawRegional = (row['QUAL REGIONAL?'] || '').trim().toUpperCase();
 
-        const finalEmpresa = rawProprioParceira.includes('PROPRIO') ? (rawGrupoEmpresa || 'EQUATORIAL') : (rawParceiraEmpresa || 'PARCEIRA NÃO INFORMADA');
+        let finalEmpresa = rawProprioParceira.includes('PROPRIO') ? (rawGrupoEmpresa || 'EQUATORIAL') : (rawParceiraEmpresa || 'PARCEIRA NÃO INFORMADA');
+        
+        // Normalize CGB company names to a single unified string "CGB"
+        if (finalEmpresa.toUpperCase().includes('CGB')) {
+            finalEmpresa = 'CGB';
+        }
 
         // --- FILTER REQUIREMENT: Keep ONLY CGB and Regional SUL ---
         const isCgb = finalEmpresa.includes('CGB');
@@ -397,7 +402,7 @@ function buildCollaboratorComplianceMatrix() {
                 nome: registry.nome || `COLABORADOR ${chapa}`,
                 cidade: registry.cidade || 'SUL',
                 tipo: 'PARCEIRA',
-                empresa: 'CGB ENERGIA LTDA',
+                empresa: 'CGB',
                 regional: 'SUL',
                 gerente: 'GERENTE NÃO DEFINIDO',
                 frente: 'OPERACIONAL',
@@ -1603,9 +1608,12 @@ function loadFileObject(file) {
                         progressBar.style.width = "100%";
                         showToast(`Encontrados ${Object.keys(cubosParsed).length} registros em CUBOS!`, 'success');
                         
-                        // If we already have CSV records, re-initialize join
-                        if (state.rawRecords.length > 0) {
-                            initializeDashboard(state.rawRecords);
+                        // If we already have CSV records, re-initialize join using raw records from local storage
+                        return loadFromDB('current_dataset');
+                    })
+                    .then(rawRecords => {
+                        if (rawRecords && rawRecords.length > 0) {
+                            initializeDashboard(rawRecords);
                         } else {
                             loadingDiv.classList.add('hidden');
                             loadingText.textContent = "";
