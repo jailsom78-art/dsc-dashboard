@@ -1965,29 +1965,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (showSpinner) {
             document.getElementById('import-screen').classList.remove('hidden');
             loadingDiv.classList.remove('hidden');
-            loadingText.textContent = "Sincronizando dados com Google Sheets...";
-            progressBar.style.width = "40%";
+            loadingText.textContent = "Obtendo contagem de registros no Google Sheets...";
+            progressBar.style.width = "20%";
         } else {
             showToast('Conectando ao Google Sheets...', 'info');
         }
 
-        return fetch(googleSheetUrl + '&_cb=' + Date.now(), {
-            cache: 'no-store',
-            headers: {
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
-        })
+        const countUrl = 'https://docs.google.com/spreadsheets/d/1MEty2mXjENUqL7LYC5XBSJxKA_mklqmn1ZbvmEz9wtk/gviz/tq?tqx=out:csv&gid=222033020&tq=select%20count(A)&_cb=' + Date.now();
+
+        return fetch(countUrl, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
             .then(res => {
-                if (!res.ok) throw new Error('Falha HTTP ao carregar planilha Google');
+                if (!res.ok) throw new Error('Falha ao obter contagem de linhas do Google Sheets');
                 return res.text();
             })
-            .then(csvText => {
+            .then(countText => {
+                const lines = countText.split('\n');
+                const totalCount = parseInt(lines[1].replace(/"/g, ''));
+                if (isNaN(totalCount) || totalCount <= 0) {
+                    throw new Error('Contagem de registros inválida recebida do Google Sheets');
+                }
+
+                if (showSpinner) {
+                    loadingText.textContent = `Encontrados ${totalCount.toLocaleString('pt-BR')} registros. Sincronizando blocos...`;
+                    progressBar.style.width = "40%";
+                }
+
+                const chunkSize = 50000;
+                const numChunks = Math.ceil((totalCount + 1) / chunkSize);
+                const chunkPromises = [];
+
+                for (let i = 0; i < numChunks; i++) {
+                    const startRow = i * chunkSize + 1;
+                    const endRow = Math.min(totalCount + 1, (i + 1) * chunkSize);
+                    const rangeStr = `A${startRow}:Q${endRow}`;
+                    const chunkUrl = googleSheetUrl + `&range=${rangeStr}&_cb=` + Date.now();
+
+                    chunkPromises.push(
+                        fetch(chunkUrl, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
+                            .then(cRes => {
+                                if (!cRes.ok) throw new Error(`Falha ao baixar bloco ${i + 1}`);
+                                return cRes.text();
+                            })
+                    );
+                }
+
+                return Promise.all(chunkPromises);
+            })
+            .then(chunkTexts => {
                 if (showSpinner) {
                     loadingText.textContent = "Processando planilha Google...";
-                    progressBar.style.width = "75%";
+                    progressBar.style.width = "80%";
                 }
-                return processCsvData(csvText);
+                const combinedCsvText = chunkTexts.map((text, idx) => {
+                    return idx === 0 ? text.trimEnd() : text.trim();
+                }).join('\n');
+
+                return processCsvData(combinedCsvText);
             })
             .then(records => {
                 if (showSpinner) {
