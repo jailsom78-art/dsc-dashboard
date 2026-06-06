@@ -221,13 +221,18 @@ function normalizeData(parsedRows) {
         let finalEmpresa = rawProprioParceira.includes('PROPRIO') ? (rawGrupoEmpresa || 'EQUATORIAL') : (rawParceiraEmpresa || 'PARCEIRA NÃO INFORMADA');
         
         // Normalize CGB company names to a single unified string "CGB"
-        if (finalEmpresa.toUpperCase().includes('CGB')) {
+        const isCgb = finalEmpresa.toUpperCase().includes('CGB');
+        if (isCgb) {
             finalEmpresa = 'CGB';
         }
 
         // --- FILTER REQUIREMENT: Keep ONLY CGB and Regional SUL ---
-        const isCgb = finalEmpresa.includes('CGB');
-        const isSul = rawRegional === 'SUL';
+        let rawRegionalNormalized = rawRegional;
+        if (isCgb) {
+            rawRegionalNormalized = 'SUL';
+        }
+        
+        const isSul = rawRegionalNormalized === 'SUL';
         if (!isCgb || !isSul) return;
 
         // Parse remaining fields
@@ -1948,6 +1953,57 @@ document.addEventListener('DOMContentLoaded', () => {
         renderChecklistFilter('pending');
     });
 
+    // --- Helper to load local fallback CSV ---
+    function loadLocalFallbackCsv() {
+        return fetch('dados.csv')
+            .then(response => {
+                if (!response.ok) throw new Error('dados.csv não encontrado.');
+                return response.text();
+            })
+            .then(csvText => {
+                return processCsvData(csvText);
+            });
+    }
+
+    // --- Helper to merge and de-duplicate historical local records and live Google Sheets records ---
+    function mergeDatasets(localRows, liveRows) {
+        const seen = new Set();
+        const merged = [];
+
+        function addRow(row) {
+            if (!row) return;
+            const ts = (row['Carimbo de data/hora'] || row['Carimbo de Data/Hora'] || '').toString().trim();
+            const mat = (row['MATRICULA'] || row['MATRÍCULA'] || '').toString().trim();
+            const temaRaw = (row['CONFIRME O TEMA DO DSC'] || row['Confirme o tema do DSC'] || '').toString().trim();
+            
+            if (!ts || !mat || !temaRaw) return;
+
+            let chapaNorm = mat;
+            if (!isNaN(parseFloat(mat))) {
+                chapaNorm = String(Math.floor(parseFloat(mat)));
+            } else {
+                chapaNorm = mat.toLowerCase();
+            }
+
+            const temaNorm = normalizeThemeName(temaRaw);
+            const key = `${ts.toLowerCase()}_${chapaNorm}_${temaNorm.toLowerCase()}`;
+
+            if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(row);
+            }
+        }
+
+        if (Array.isArray(localRows)) {
+            localRows.forEach(addRow);
+        }
+        if (Array.isArray(liveRows)) {
+            liveRows.forEach(addRow);
+        }
+
+        return merged;
+    }
+
     // --- Google Sheets Sync Logic (Real-time) ---
     const googleSheetUrl = 'https://docs.google.com/spreadsheets/d/1MEty2mXjENUqL7LYC5XBSJxKA_mklqmn1ZbvmEz9wtk/export?format=csv&gid=222033020';
 
@@ -2021,6 +2077,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('\n');
 
                 return processCsvData(combinedCsvText);
+            })
+            .then(liveRecords => {
+                if (showSpinner) {
+                    progressBar.style.width = "90%";
+                    loadingText.textContent = "Mesclando dados históricos com os novos...";
+                }
+                return loadLocalFallbackCsv()
+                    .then(localRecords => {
+                        const mergedRecords = mergeDatasets(localRecords, liveRecords);
+                        console.log(`Dados mesclados! Local: ${localRecords.length}, Live: ${liveRecords.length}, Mesclado: ${mergedRecords.length}`);
+                        return mergedRecords;
+                    })
+                    .catch(localErr => {
+                        console.warn("Falha ao carregar dados.csv local para mesclagem, usando apenas dados online:", localErr);
+                        return liveRecords;
+                    });
             })
             .then(records => {
                 if (showSpinner) {
@@ -2102,14 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             } else {
                                 // Step 4: Fallback to local files dados.csv
                                 console.log("Fallback 2: Carregando dados.csv da raiz...");
-                                return fetch('dados.csv')
-                                    .then(response => {
-                                        if (!response.ok) throw new Error('dados.csv não encontrado.');
-                                        return response.text();
-                                    })
-                                    .then(csvText => {
-                                        return processCsvData(csvText);
-                                    })
+                                return loadLocalFallbackCsv()
                                     .then(records => {
                                         return saveToDB(records, 'current_dataset').then(() => records);
                                     })
