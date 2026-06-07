@@ -5,7 +5,7 @@
  * and cost center cross-referencing with CUBOS.
  */
 
-// 28 Official DSC Themes
+// 29 Official DSC Themes
 const OFFICIAL_THEMES = [
     "TEMA 1 - COMUNICACAO NAO VIOLENTA",
     "TEMA 2 - ATENDIMENTO HUMANIZADO",
@@ -34,7 +34,8 @@ const OFFICIAL_THEMES = [
     "TEMA 25 - TRANSPARENCIA NAS INFORMACOES",
     "TEMA 26 - COMO EVITAR RETRABALHO E RETORNOS DESNECESSARIOS",
     "TEMA 27 - RESPONSABILIDADE SOCIAL NO ATENDIMENTO AO CLIENTE",
-    "TEMA 28 - COMO LIDAR COM CLIENTES EXALTADOS OU NERVOSOS"
+    "TEMA 28 - COMO LIDAR COM CLIENTES EXALTADOS OU NERVOSOS",
+    "TEMA 29 - DANOS ELETRICOS COMO ORIENTAR O CLIENTE COM CLAREZA E RESPEITO"
 ];
 
 // Matrículas of employees who are no longer part of regional Sul and should be excluded from reports
@@ -47,7 +48,7 @@ const state = {
     rawRecords: [],       // Raw normalized submissions from CSV
     collaborators: {},    // Map: matricula -> { profile, completedThemes: { theme: { date, score } } }
     cubosData: {},        // Map: chapa -> { cc, secao, funcao, situacao }
-    masterThemes: [...OFFICIAL_THEMES],     // Array of all 28 official themes
+    masterThemes: [...OFFICIAL_THEMES],     // Array of all 29 official themes
     uniqueRegionals: [],
     uniqueManagers: [],
     uniqueCompanies: [],
@@ -209,7 +210,7 @@ function normalizeData(parsedRows) {
         // Skip empty rows or header duplicate rows
         if (!row['MATRICULA'] && !row['NOME COMPLETO']) return;
 
-        // Populate master themes using the 28 official themes checklist
+        // Populate master themes using the 29 official themes checklist
         const rawTema = normalizeThemeName(row['CONFIRME O TEMA DO DSC'] || '');
 
         // Clean up basic text fields
